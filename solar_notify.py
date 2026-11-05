@@ -44,7 +44,7 @@ def generar_mensaje(kwh_dia, ventana):
     Indica la producción estimada y recomienda aprovechar la ventana óptima para consumos intensivos (lavado, climatización o recarga EV). Usa viñetas breves.
     """
     res = client.models.generate_content(
-        model="gemini-2.5-flash",
+        model="gemini-3.8-flash",
         contents=prompt
     )
     return res.text.strip()
