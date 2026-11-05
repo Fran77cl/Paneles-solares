@@ -33,21 +33,31 @@ def obtener_pronostico():
     return round(total_kwh, 1), ventana
 
 def generar_mensaje(kwh_dia, ventana):
-    client = genai.Client(api_key=GEMINI_API_KEY)
-    prompt = f"""
-    Eres un asistente de energía solar para una casa en Pudahuel, Santiago.
-    Datos proyectados para hoy:
-    - Generación estimada: {kwh_dia} kWh
-    - Ventana óptima (>3 kW solar): {ventana}
-
-    Redacta una notificación para Telegram muy directa al grano, en español, de máximo 3 o 4 líneas.
-    Indica la producción estimada y recomienda aprovechar la ventana óptima para consumos intensivos (lavado, climatización o recarga EV). Usa viñetas breves.
-    """
-    res = client.models.generate_content(
-        model="gemini-3.8-flash",
-        contents=prompt
+    texto_fallback = (
+        f"• Generación estimada: {kwh_dia} kWh\n"
+        f"• Ventana óptima (>3 kW): {ventana}\n"
+        f"• Sugerencia: Planificar cargas de alto consumo (climatización, lavados o recarga EV) en dicha ventana."
     )
-    return res.text.strip()
+    
+    try:
+        client = genai.Client(api_key=GEMINI_API_KEY)
+        prompt = f"""
+        Eres un asistente de energía solar para una casa en Pudahuel, Santiago.
+        Datos proyectados para hoy:
+        - Generación estimada: {kwh_dia} kWh
+        - Ventana óptima (>3 kW solar): {ventana}
+
+        Redacta una notificación para Telegram muy directa al grano, en español, de máximo 3 o 4 líneas.
+        Indica la producción estimada y recomienda aprovechar la ventana óptima para consumos intensivos (lavado, climatización o recarga EV). Usa viñetas breves.
+        """
+        res = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt
+        )
+        return res.text.strip()
+    except Exception as e:
+        print(f"Aviso: La API de Gemini no respondió ({e}). Usando mensaje alternativo.")
+        return texto_fallback
 
 def enviar_telegram(texto):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
