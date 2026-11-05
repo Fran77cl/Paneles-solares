@@ -12,9 +12,28 @@ TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
 def obtener_pronostico():
-    url = f"https://api.open-meteo.com/v1/forecast?latitude={LAT}&longitude={LON}&hourly=shortwave_radiation&timezone=America%2FSantiago&forecast_days=1"
+    url = (
+        f"https://api.open-meteo.com/v1/forecast?latitude={LAT}&longitude={LON}"
+        f"&hourly=shortwave_radiation"
+        f"&daily=weather_code,precipitation_sum"
+        f"&timezone=America%2FSantiago&forecast_days=1"
+    )
     res = requests.get(url).json()
     
+    # 1. Detección meteorológica adversa
+    daily = res.get("daily", {})
+    wmo_code = daily.get("weather_code", [0])[0]
+    lluvia_mm = daily.get("precipitation_sum", [0.0])[0]
+    
+    alerta_clima = None
+    if wmo_code in [95, 96, 99]:
+        alerta_clima = f"⚡ Tormenta eléctrica ({lluvia_mm} mm proyectados)"
+    elif wmo_code in [51, 53, 55, 61, 63, 65, 80, 81, 82] or lluvia_mm >= 1.0:
+        alerta_clima = f"🌧️ Lluvia estimada: {lluvia_mm} mm"
+    elif wmo_code == 3:
+        alerta_clima = "☁️ Cielo completamente nublado / baja radiación"
+
+    # 2. Curva solar hora a hora
     horas = res["hourly"]["time"]
     radiacion = res["hourly"]["shortwave_radiation"]
     
@@ -30,13 +49,21 @@ def obtener_pronostico():
             
     total_kwh = sum(generacion_por_hora.values())
     ventana = f"{min(horas_peak)}:00 a {max(horas_peak)+1}:00 hrs" if horas_peak else "Sin ventana sobre 3 kW"
-    return round(total_kwh, 1), ventana
+    
+    return round(total_kwh, 1), ventana, alerta_clima
 
-def generar_mensaje(kwh_dia, ventana):
+def generar_mensaje(kwh_dia, ventana, alerta_clima):
+    aviso_texto = f"⚠️ *Alerta Clima:* {alerta_clima}\n" if alerta_clima else ""
+    
     texto_fallback = (
+        f"{aviso_texto}"
         f"• Generación estimada: {kwh_dia} kWh\n"
         f"• Ventana óptima (>3 kW): {ventana}\n"
-        f"• Sugerencia: Planificar cargas de alto consumo (climatización, lavados o recarga EV) en dicha ventana."
+        f"• Sugerencia: " + (
+            "Evitar grandes consumos diurnos (dependerá de la red)." 
+            if alerta_clima else 
+            "Aprovechar ventana para climatización, lavado o recarga EV."
+        )
     )
     
     try:
@@ -44,19 +71,20 @@ def generar_mensaje(kwh_dia, ventana):
         prompt = f"""
         Eres un asistente de energía solar para una casa en Pudahuel, Santiago.
         Datos proyectados para hoy:
-        - Generación estimada: {kwh_dia} kWh
+        - Condición climática especial: {alerta_clima if alerta_clima else 'Despejado / Buen tiempo'}
+        - Generación solar estimada: {kwh_dia} kWh
         - Ventana óptima (>3 kW solar): {ventana}
 
-        Redacta una notificación para Telegram muy directa al grano, en español, de máximo 3 o 4 líneas.
-        Indica la producción estimada y recomienda aprovechar la ventana óptima para consumos intensivos (lavado, climatización o recarga EV). Usa viñetas breves.
+        Redacta una notificación para Telegram muy concisa, en español, de máximo 3 o 4 líneas.
+        Si hay lluvia o nubosidad densa, incluye una advertencia al inicio avisando que la generación será baja y recomendando cuidar los consumos en horario punta o postergar cargas pesadas. Si el tiempo es óptimo, recomienda la ventana para lavado o carga EV. Usa viñetas breves.
         """
         res = client.models.generate_content(
             model="gemini-2.5-flash",
             contents=prompt
         )
-        return res.text.strip()
+        return f"{aviso_texto}{res.text.strip()}"
     except Exception as e:
-        print(f"Aviso: La API de Gemini no respondió ({e}). Usando mensaje alternativo.")
+        print(f"Aviso API: {e}. Usando fallback.")
         return texto_fallback
 
 def enviar_telegram(texto):
@@ -69,7 +97,7 @@ def enviar_telegram(texto):
     requests.post(url, json=payload)
 
 if __name__ == "__main__":
-    kwh, ventana = obtener_pronostico()
-    mensaje = generar_mensaje(kwh, ventana)
+    kwh, ventana, alerta = obtener_pronostico()
+    mensaje = generar_mensaje(kwh, ventana, alerta)
     enviar_telegram(mensaje)
-  
+    
