@@ -4,7 +4,7 @@ on:
   schedule:
     # 10:30 UTC equivale a las 07:30 AM en Santiago (UTC-3)
     - cron: '30 10 * * *'
-  workflow_dispatch: # Permite ejecutarlo manualmente con un clic para probar
+  workflow_dispatch:
 
 jobs:
   run-notifier:
@@ -14,7 +14,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Configurar Python
-        uses: setup-python@v5
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
@@ -27,4 +27,3 @@ jobs:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python solar_notify.py
-        
