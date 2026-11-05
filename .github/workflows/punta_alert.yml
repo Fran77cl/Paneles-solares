@@ -1,0 +1,29 @@
+name: Alerta Horario Punta
+
+on:
+  schedule:
+    # 20:45 UTC equivale a las 17:45 hrs en Santiago (UTC-3)
+    # Corre solo de lunes a viernes (1-5)
+    - cron: '45 20 * * 1-5'
+  workflow_dispatch:
+
+jobs:
+  send-alert:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enviar recordatorio a Telegram
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          MENSAJE="⚠️ *Atención: En 15 min inicia Bloque Punta*
+
+          • *Tarifa:* \$370,26 / kWh (Bloque más caro)
+          • *Horario:* 18:00 a 22:00 hrs
+          • *Recomendación:* Suspender cargas de vehículos, apagar hornos de alta potencia y detener ciclos de lavado. La generación solar comienza a descender."
+
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage" \
+            -d "chat_id=${TELEGRAM_CHAT_ID}" \
+            -d "text=${MENSAJE}" \
+            -d "parse_mode=Markdown"
+            
