@@ -1,0 +1,30 @@
+name: Evaluador Pauta Carga Auto
+
+on:
+  schedule:
+    # Corre cada 15 minutos entre las 13:00 y 21:00 UTC (10:00 a 18:00 hora de Santiago)
+    - cron: '*/15 13-21 * * *'
+  workflow_dispatch: # Botón manual para probarlo cuando quieras
+
+jobs:
+  evaluar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Instalar librería requests
+        run: pip install requests
+
+      - name: Ejecutar monitor
+        env:
+          KIOSK_KEY: ${{ secrets.KIOSK_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python monitor_auto.py
+        
